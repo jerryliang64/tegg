@@ -75,6 +75,11 @@ This is a Lerna monorepo with three workspace categories:
 - `ObjectInitType.SINGLETON`: Single instance for app lifetime
 - `ObjectInitType.ALWAYS_NEW`: New instance on every injection
 
+**Controller Types:**
+- `@HTTPController`: General-purpose HTTP controller with manual route decoration per method
+- `@MCPController`: Model Context Protocol controller for AI tool/resource/prompt serving
+- `@AgentController`: AI Agent HTTP API controller — auto-registers 7 standardized endpoints (threads, runs, streaming)
+
 ### Dependency Injection Flow
 
 1. Decorators (`@ContextProto`, `@SingletonProto`, etc.) register metadata on classes
@@ -117,7 +122,7 @@ import { Schedule } from '@eggjs/tegg/schedule';
 import { Transactional } from '@eggjs/tegg/transaction';
 ```
 
-Available subpaths: `aop`, `orm`, `dal`, `schedule`, `transaction`, `ajv`, `helper`, `standalone`
+Available subpaths: `aop`, `orm`, `dal`, `schedule`, `transaction`, `ajv`, `helper`, `standalone`, `agent`
 
 ### Advanced Usage (custom loaders, lifecycle hooks)
 
@@ -266,6 +271,107 @@ export class GoodService {
 - Keep modules focused and cohesive
 - Use `AccessLevel.PUBLIC` sparingly to define clear module boundaries
 - Prefer injecting prototypes over direct module-to-module references
+
+## @AgentController Decorator
+
+`@AgentController()` provides a standardized HTTP API for AI Agent interactions (OpenAI Chat Completions compatible). One decorator + one interface implementation = 7 standard HTTP APIs auto-registered.
+
+### Usage
+
+Implement `AgentHandler` with the required `execRun` method. The framework auto-wires thread/run management, store persistence, SSE streaming, async execution, and cancellation. It duck-types yielded objects by field presence:
+- `message` field present → extracts text from `message.content[].text`
+- `usage` field present → extracts usage info (AgentRunUsage)
+- The `type` field is a free-form string — no constraints on its value
+
+```typescript
+import { AgentController } from '@eggjs/tegg/agent';
+import type { AgentHandler, CreateRunInput, AgentStreamMessage } from '@eggjs/tegg/agent';
+
+@AgentController()
+export class MyAgentController implements AgentHandler {
+  async* execRun(input: CreateRunInput): AsyncGenerator<AgentStreamMessage> {
+    // Yield AgentStreamMessage objects
+    for await (const msg of query({ prompt: '...' })) {
+      yield msg;
+    }
+  }
+
+  // Optional: provide a custom AgentStore implementation
+  // async createStore() { return new MyCustomStore(); }
+}
+```
+
+You can optionally override any of the 7 route methods for full control. Unoverridden methods get store-backed smart defaults powered by `execRun`:
+
+```typescript
+@AgentController()
+export class MyAgentController implements AgentHandler {
+  async* execRun(input: CreateRunInput): AsyncGenerator<AgentStreamMessage> { /* ... */ }
+
+  // Override specific routes as needed
+  async syncRun(input: CreateRunInput): Promise<RunObject> {
+    const messages = input.input.messages;
+    return {
+      id: 'run_1', object: 'thread.run',
+      created_at: Math.floor(Date.now() / 1000),
+      status: 'completed',
+      output: [{ /* ... */ }],
+    };
+  }
+}
+```
+
+### Route Table
+
+The decorator auto-registers these 7 HTTP routes (basePath is fixed to `/api/v1`):
+
+| HTTP | Path | Method | Param |
+|------|------|--------|-------|
+| POST | `/threads` | `createThread()` | — |
+| GET | `/threads/:id` | `getThread(threadId)` | path param `id` |
+| POST | `/runs` | `asyncRun(input)` | request body |
+| POST | `/runs/stream` | `streamRun(input)` | request body |
+| POST | `/runs/wait` | `syncRun(input)` | request body |
+| GET | `/runs/:id` | `getRun(runId)` | path param `id` |
+| POST | `/runs/:id/cancel` | `cancelRun(runId)` | path param `id` |
+
+### How It Works
+
+`@AgentController()` reuses the existing HTTP controller infrastructure — no new plugin or register needed:
+
+1. The decorator sets `ControllerType.HTTP` and programmatically applies HTTP method/path/param metadata for all 7 routes
+2. It applies `@SingletonProto({ accessLevel: AccessLevel.PUBLIC })` automatically
+3. Missing route methods get stub implementations (marked with `Symbol.for('AGENT_NOT_IMPLEMENTED')`)
+4. `plugin/controller`'s `EggControllerPrototypeHook` detects `execRun` on the prototype and calls `enhanceAgentController()` from `agent-runtime` to replace stubs with store-backed defaults
+5. `HTTPControllerMetaBuilder` picks up the metadata and produces 7 `HTTPMethodMeta` entries
+6. `HTTPControllerRegister` registers 7 Koa routes as usual
+
+### Key Files
+
+| File | Description |
+|------|-------------|
+| `core/controller-decorator/src/decorator/agent/AgentController.ts` | Decorator implementation |
+| `core/controller-decorator/src/decorator/agent/AgentHandler.ts` | `AgentHandler` interface |
+| `core/controller-decorator/src/model/AgentControllerTypes.ts` | Data model types (messages, runs, threads) |
+| `core/agent-runtime/src/enhanceAgentController.ts` | Smart default enhancement (replaces stubs, wraps lifecycle) |
+| `core/agent-runtime/src/agentDefaults.ts` | Default method factories (store-backed implementations) |
+| `core/tegg/agent.ts` | Subpath export for `@eggjs/tegg/agent` |
+| `core/controller-decorator/test/AgentController.test.ts` | Unit tests (metadata verification) |
+| `plugin/controller/test/http/agent.test.ts` | E2E tests (manual route overrides) |
+| `plugin/controller/test/http/base-agent.test.ts` | E2E tests (execRun smart defaults) |
+
+### Context Access
+
+Methods do not receive `ctx` as a parameter. For methods that need request context access (e.g., SSE streaming in `streamRun`), use:
+
+```typescript
+import { ContextHandler } from '@eggjs/tegg-runtime';
+
+async streamRun(input: CreateRunInput): Promise<void> {
+  const ctx = ContextHandler.getContext();
+  // Access ctx.res for SSE streaming
+}
+```
 
 ## Important Constraints
 
@@ -707,7 +813,7 @@ TypeScript type definitions organized by domain:
 ├── metadata/               # Types for metadata layer
 ├── runtime/                # Types for runtime layer
 ├── lifecycle/              # Lifecycle hook interfaces
-└── controller-decorator/   # HTTP controller types
+├── controller-decorator/   # HTTP, MCP, Agent controller types
 ```
 
 #### @eggjs/tegg-plugin (`plugin/tegg`)

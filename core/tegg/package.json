@@ -52,6 +52,7 @@
     "@eggjs/tegg-runtime": "^3.72.0",
     "@eggjs/tegg-schedule-decorator": "^3.72.0",
     "@eggjs/tegg-transaction-decorator": "^3.72.0",
+    "@eggjs/tegg-agent-runtime": "^3.72.0",
     "@eggjs/tegg-types": "^3.72.0"
   },
   "peerDependencies": {

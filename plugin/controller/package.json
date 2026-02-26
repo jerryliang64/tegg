@@ -49,6 +49,7 @@
   },
   "dependencies": {
     "@eggjs/egg-module-common": "^3.72.0",
+    "@eggjs/tegg-agent-runtime": "^3.72.0",
     "@eggjs/router": "^2.0.1",
     "@eggjs/tegg": "^3.72.0",
     "@eggjs/tegg-common-util": "^3.72.0",
