@@ -274,7 +274,7 @@ export class GoodService {
 
 ## @AgentController Decorator
 
-`@AgentController()` provides a standardized HTTP API for AI Agent interactions (OpenAI Chat Completions compatible). One decorator + one interface implementation = 7 standard HTTP APIs auto-registered.
+`@AgentController()` provides a standardized HTTP API for AI Agent interactions (OpenAI Agents API compatible). One decorator + one interface implementation = 7 standard HTTP APIs auto-registered.
 
 ### Usage
 
@@ -342,7 +342,7 @@ The decorator auto-registers these 7 HTTP routes (basePath is fixed to `/api/v1`
 1. The decorator sets `ControllerType.HTTP` and programmatically applies HTTP method/path/param metadata for all 7 routes
 2. It applies `@SingletonProto({ accessLevel: AccessLevel.PUBLIC })` automatically
 3. Missing route methods get stub implementations (marked with `Symbol.for('AGENT_NOT_IMPLEMENTED')`)
-4. `plugin/controller`'s `EggControllerPrototypeHook` detects `execRun` on the prototype and calls `enhanceAgentController()` from `agent-runtime` to replace stubs with store-backed defaults
+4. `plugin/controller`'s `EggControllerPrototypeHook` detects `Symbol.for('AGENT_CONTROLLER')` on the class and calls `enhanceAgentController()` from `agent-runtime` to replace stubs with store-backed defaults
 5. `HTTPControllerMetaBuilder` picks up the metadata and produces 7 `HTTPMethodMeta` entries
 6. `HTTPControllerRegister` registers 7 Koa routes as usual
 

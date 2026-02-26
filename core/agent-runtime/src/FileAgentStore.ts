@@ -97,7 +97,7 @@ export class FileAgentStore implements AgentStore {
   }
 
   private async writeFile(filePath: string, data: unknown): Promise<void> {
-    const tmpPath = `${filePath}.tmp`;
+    const tmpPath = `${filePath}.${crypto.randomUUID()}.tmp`;
     await fs.writeFile(tmpPath, JSON.stringify(data), 'utf-8');
     await fs.rename(tmpPath, filePath);
   }

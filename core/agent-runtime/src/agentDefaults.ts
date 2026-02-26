@@ -68,6 +68,7 @@ function extractFromStreamMessages(messages: AgentStreamMessage[], runId?: strin
   const output: MessageObject[] = [];
   let promptTokens = 0;
   let completionTokens = 0;
+  let totalTokens = 0;
   let hasUsage = false;
 
   for (const msg of messages) {
@@ -78,6 +79,7 @@ function extractFromStreamMessages(messages: AgentStreamMessage[], runId?: strin
       hasUsage = true;
       promptTokens += msg.usage.prompt_tokens ?? 0;
       completionTokens += msg.usage.completion_tokens ?? 0;
+      totalTokens += msg.usage.total_tokens ?? 0;
     }
   }
 
@@ -86,7 +88,7 @@ function extractFromStreamMessages(messages: AgentStreamMessage[], runId?: strin
     usage = {
       prompt_tokens: promptTokens,
       completion_tokens: completionTokens,
-      total_tokens: promptTokens + completionTokens,
+      total_tokens: Math.max(promptTokens + completionTokens, totalTokens),
     };
   }
 
@@ -144,6 +146,7 @@ function defaultSyncRun() {
     if (!threadId) {
       const thread = await this.__agentStore.createThread();
       threadId = thread.id;
+      input = { ...input, thread_id: threadId };
     }
 
     const run = await this.__agentStore.createRun(
@@ -206,6 +209,7 @@ function defaultAsyncRun() {
     if (!threadId) {
       const thread = await this.__agentStore.createThread();
       threadId = thread.id;
+      input = { ...input, thread_id: threadId };
     }
 
     const run = await this.__agentStore.createRun(
@@ -297,6 +301,7 @@ function defaultStreamRun() {
     if (!threadId) {
       const thread = await this.__agentStore.createThread();
       threadId = thread.id;
+      input = { ...input, thread_id: threadId };
     }
 
     const run = await this.__agentStore.createRun(
@@ -341,6 +346,7 @@ function defaultStreamRun() {
 
     let promptTokens = 0;
     let completionTokens = 0;
+    let totalTokens = 0;
     let hasUsage = false;
 
     try {
@@ -362,7 +368,22 @@ function defaultStreamRun() {
           hasUsage = true;
           promptTokens += msg.usage.prompt_tokens ?? 0;
           completionTokens += msg.usage.completion_tokens ?? 0;
+          totalTokens += msg.usage.total_tokens ?? 0;
         }
+      }
+
+      // If client disconnected / abort signaled, emit cancelled and return
+      if (abortController.signal.aborted) {
+        const cancelledAt = nowUnix();
+        try {
+          await this.__agentStore.updateRun(run.id, { status: 'cancelled', cancelled_at: cancelledAt });
+        } catch {
+          // Ignore store update failure during abort
+        }
+        runObj.status = 'cancelled';
+        runObj.cancelled_at = cancelledAt;
+        res.write(`event: thread.run.cancelled\ndata: ${JSON.stringify(runObj)}\n\n`);
+        return;
       }
 
       // event: thread.message.completed
@@ -377,15 +398,16 @@ function defaultStreamRun() {
         usage = {
           prompt_tokens: promptTokens,
           completion_tokens: completionTokens,
-          total_tokens: promptTokens + completionTokens,
+          total_tokens: Math.max(promptTokens + completionTokens, totalTokens),
         };
       }
 
+      const completedAt = nowUnix();
       await this.__agentStore.updateRun(run.id, {
         status: 'completed',
         output,
         usage,
-        completed_at: nowUnix(),
+        completed_at: completedAt,
       });
 
       await this.__agentStore.appendMessages(threadId!, [
@@ -395,7 +417,7 @@ function defaultStreamRun() {
 
       // event: thread.run.completed
       runObj.status = 'completed';
-      runObj.completed_at = nowUnix();
+      runObj.completed_at = completedAt;
       runObj.usage = usage;
       runObj.output = output;
       res.write(`event: thread.run.completed\ndata: ${JSON.stringify(runObj)}\n\n`);

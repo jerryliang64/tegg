@@ -9,6 +9,7 @@ const AGENT_METHOD_NAMES = [
 ];
 
 const NOT_IMPLEMENTED = Symbol.for('AGENT_NOT_IMPLEMENTED');
+const AGENT_ENHANCED = Symbol.for('AGENT_CONTROLLER_ENHANCED');
 
 // Enhance an AgentController class with smart default implementations.
 //
@@ -24,6 +25,11 @@ const NOT_IMPLEMENTED = Symbol.for('AGENT_NOT_IMPLEMENTED');
 export function enhanceAgentController(clazz: EggProtoImplClass): void {
   // Only enhance classes marked by @AgentController decorator
   if (!(clazz as any)[Symbol.for('AGENT_CONTROLLER')]) {
+    return;
+  }
+
+  // Guard against repeated enhancement (e.g., multiple lifecycle hook calls)
+  if ((clazz as any)[AGENT_ENHANCED]) {
     return;
   }
 
@@ -85,4 +91,6 @@ export function enhanceAgentController(clazz: EggProtoImplClass): void {
       clazz.prototype[methodName] = factory();
     }
   }
+
+  (clazz as any)[AGENT_ENHANCED] = true;
 }
