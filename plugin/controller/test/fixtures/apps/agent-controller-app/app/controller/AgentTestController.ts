@@ -25,6 +25,7 @@ function nowUnix(): number {
 @AgentController()
 export class AgentTestController implements AgentHandler {
   // Required by AgentHandler — noop since all route methods are overridden
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async* execRun(_input: CreateRunInput): AsyncGenerator<AgentStreamMessage> {
     // All routes are manually implemented; this is never called.
   }
