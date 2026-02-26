@@ -10,7 +10,7 @@ export interface ThreadRecord {
   object: 'thread';
   messages: MessageObject[];
   metadata: Record<string, unknown>;
-  created_at: number;   // Unix seconds
+  created_at: number; // Unix seconds
 }
 
 export interface RunRecord {

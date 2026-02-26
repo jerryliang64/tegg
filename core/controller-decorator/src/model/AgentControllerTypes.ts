@@ -14,9 +14,9 @@ export interface InputContentPart {
 // ===== Output Message (OpenAI thread.message object) =====
 
 export interface MessageObject {
-  id: string;                              // "msg_xxx"
+  id: string; // "msg_xxx"
   object: 'thread.message';
-  created_at: number;                      // Unix seconds
+  created_at: number; // Unix seconds
   thread_id?: string;
   run_id?: string;
   role: 'user' | 'assistant';
@@ -35,9 +35,9 @@ export type MessageContentBlock = TextContentBlock;
 // ===== Thread types =====
 
 export interface ThreadObject {
-  id: string;                              // "thread_xxx"
+  id: string; // "thread_xxx"
   object: 'thread';
-  created_at: number;                      // Unix seconds
+  created_at: number; // Unix seconds
   metadata: Record<string, unknown>;
 }
 
@@ -52,9 +52,9 @@ export type RunStatus =
   | 'failed' | 'cancelled' | 'cancelling' | 'expired';
 
 export interface RunObject {
-  id: string;                              // "run_xxx"
+  id: string; // "run_xxx"
   object: 'thread.run';
-  created_at: number;                      // Unix seconds
+  created_at: number; // Unix seconds
   thread_id?: string;
   status: RunStatus;
   last_error?: { code: string; message: string } | null;
