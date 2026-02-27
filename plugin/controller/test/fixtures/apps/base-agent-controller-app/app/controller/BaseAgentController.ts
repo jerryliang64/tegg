@@ -6,7 +6,9 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
     const timer = setTimeout(resolve, ms);
     signal?.addEventListener('abort', () => {
       clearTimeout(timer);
-      reject(new DOMException('Aborted', 'AbortError'));
+      const err = new Error('Aborted');
+      err.name = 'AbortError';
+      reject(err);
     }, { once: true });
   });
 }
